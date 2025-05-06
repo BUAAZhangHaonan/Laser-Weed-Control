@@ -1,0 +1,18 @@
+camera:
+  ip: "192.168.1.10"
+  frame_rate: 30
+  exposure_time: 10000  # 微秒
+  gain: 1.0
+
+network:
+  server_ip: "0.0.0.0"  # 监听所有接口
+  server_port: 5000
+
+model:
+  path: "../models/yolov8n_weed.pt"
+  confidence_threshold: 0.5
+  iou_threshold: 0.45
+
+stabilization:
+  enable: true
+  window_size: 5

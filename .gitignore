@@ -1,0 +1,9 @@
+.vscode
+/checkpoint
+*.mp4
+*.jpg
+*.png
+*.pt
+*.pth
+*.__pycache__
+*.pyc

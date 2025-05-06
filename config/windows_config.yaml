@@ -1,0 +1,13 @@
+network:
+  jetson_ip: "192.168.1.20"
+  jetson_port: 5000
+
+laser:
+  com_port: "COM3"
+  baud_rate: 115200
+  timeout: 1.0
+
+safety:
+  max_work_area: [[-500, 500], [-500, 500], [0, 1000]]  # mm
+  min_target_distance: 100  # mm
+  emergency_stop_enabled: true
