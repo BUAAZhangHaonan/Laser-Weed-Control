@@ -4,17 +4,17 @@
 
 ## 1. 通信架构
 
-*   **角色:**
-    *   **Jetson AGX Orin:** TCP 服务器端 (`jetson/communication/tcp/server.py`)，监听特定端口，接收 Windows 连接，并发送目标坐标信息。
-    *   **Windows 上位机:** TCP 客户端端 (`windows/communication/tcp/client.py`)，主动连接到 Jetson 服务器，接收目标坐标信息，并可能发送控制命令。
-*   **连接方式:** 点对点 TCP 连接。Windows 客户端连接到 Jetson 服务器后，建立一个持久连接用于双向数据交换。
-*   **网络:** Jetson 和 Windows 连接到同一个交换机，位于同一局域网内。确保 Jetson 的 IP 地址对 Windows 可见且可访问。
+* **角色:**
+  * **Jetson AGX Orin:** TCP 服务器端 (`jetson/communication/tcp/server.py`)，监听特定端口，接收 Windows 连接，并发送目标坐标信息。
+  * **Windows 上位机:** TCP 客户端端 (`windows/communication/tcp/client.py`)，主动连接到 Jetson 服务器，接收目标坐标信息，并可能发送控制命令。
+* **连接方式:** 点对点 TCP 连接。Windows 客户端连接到 Jetson 服务器后，建立一个持久连接用于双向数据交换。
+* **网络:** Jetson 和 Windows 连接到同一个交换机，位于同一局域网内。确保 Jetson 的 IP 地址对 Windows 可见且可访问。
 
 ## 2. 消息格式 (`common/messages.py`)
 
 为了确保 Jetson 和 Windows 能够正确理解对方发送的数据，我们将使用结构化的消息格式，并采用 JSON 进行序列化。
 
-*   **消息定义:** 在 `common/messages.py` 中定义消息类，例如：
+* **消息定义:** 在 `common/messages.py` 中定义消息类，例如：
 
     ```python
     # common/messages.py
@@ -92,49 +92,49 @@
             return None # 解码或解析失败
     ```
 
-*   **序列化:** 使用 `json.dumps().encode('utf-8')` 将 Python 对象（通过 `to_dict()` 转换）转换为字节串。
-*   **反序列化:** 使用 `data_bytes.decode('utf-8')` 将字节串解码为字符串，再使用 `json.loads()` 解析为 Python 字典，最后通过 `from_dict()` 转换为消息对象。
+* **序列化:** 使用 `json.dumps().encode('utf-8')` 将 Python 对象（通过 `to_dict()` 转换）转换为字节串。
+* **反序列化:** 使用 `data_bytes.decode('utf-8')` 将字节串解码为字符串，再使用 `json.loads()` 解析为 Python 字典，最后通过 `from_dict()` 转换为消息对象。
 
 ## 3. 消息分帧
 
 TCP 是流协议，没有内置的消息边界。我们需要手动实现分帧机制，以确保接收端能够准确地解析出每一条完整的消息。这里采用 **长度前缀法**。
 
-*   **发送端:**
-    1.  将消息序列化为字节串 `message_bytes`。
-    2.  获取字节串的长度 `length = len(message_bytes)`。
-    3.  将长度 `length` 打包成一个固定长度的二进制表示，例如 4 字节的无符号大端整数 (`>I`)。使用 Python 的 `struct` 库：`length_prefix = struct.pack('>I', length)`。
-    4.  将长度前缀和消息体拼接后发送：`socket.sendall(length_prefix + message_bytes)`。
-*   **接收端:**
-    1.  维护一个接收缓冲区 (`buffer = b''`)。
-    2.  持续从 socket 接收数据并追加到缓冲区。
-    3.  检查缓冲区：
-        *   如果缓冲区长度小于 4 字节，等待更多数据。
-        *   如果缓冲区长度大于等于 4 字节，读取前 4 字节 (`length_prefix_bytes = buffer[:4]`)，使用 `struct.unpack('>I', length_prefix_bytes)` 解包得到消息长度 `length`。
-        *   检查缓冲区剩余长度：
-            *   如果缓冲区剩余长度 (`len(buffer) - 4`) 小于 `length`，说明消息未接收完整，等待更多数据。
-            *   如果缓冲区剩余长度大于等于 `length`，说明缓冲区包含至少一条完整消息。读取消息体 (`message_bytes = buffer[4 : 4 + length]`)。
-            *   从缓冲区移除已处理的部分 (`buffer = buffer[4 + length:]`)。
-            *   对 `message_bytes` 进行反序列化。
-            *   重复检查缓冲区，看是否包含下一条消息。
+* **发送端:**
+    1. 将消息序列化为字节串 `message_bytes`。
+    2. 获取字节串的长度 `length = len(message_bytes)`。
+    3. 将长度 `length` 打包成一个固定长度的二进制表示，例如 4 字节的无符号大端整数 (`>I`)。使用 Python 的 `struct` 库：`length_prefix = struct.pack('>I', length)`。
+    4. 将长度前缀和消息体拼接后发送：`socket.sendall(length_prefix + message_bytes)`。
+* **接收端:**
+    1. 维护一个接收缓冲区 (`buffer = b''`)。
+    2. 持续从 socket 接收数据并追加到缓冲区。
+    3. 检查缓冲区：
+       * 如果缓冲区长度小于 4 字节，等待更多数据。
+       * 如果缓冲区长度大于等于 4 字节，读取前 4 字节 (`length_prefix_bytes = buffer[:4]`)，使用 `struct.unpack('>I', length_prefix_bytes)` 解包得到消息长度 `length`。
+       * 检查缓冲区剩余长度：
+          * 如果缓冲区剩余长度 (`len(buffer) - 4`) 小于 `length`，说明消息未接收完整，等待更多数据。
+          * 如果缓冲区剩余长度大于等于 `length`，说明缓冲区包含至少一条完整消息。读取消息体 (`message_bytes = buffer[4 : 4 + length]`)。
+          * 从缓冲区移除已处理的部分 (`buffer = buffer[4 + length:]`)。
+          * 对 `message_bytes` 进行反序列化。
+          * 重复检查缓冲区，看是否包含下一条消息。
 
 ## 4. Jetson TCP 服务器 (`jetson/communication/tcp/server.py`)
 
-*   **职责:**
-    *   创建并绑定 Socket，监听指定 IP 和端口。
-    *   接受 Windows 客户端的连接。
-    *   在一个独立的线程或异步任务中处理客户端连接，负责消息的接收和发送。
-    *   提供公共接口供 Jetson 主程序调用，以发送目标坐标消息。
-    *   处理连接管理（断开、重连）。
-*   **实现要点:**
-    *   使用 `socket.socket(socket.AF_INET, socket.SOCK_STREAM)` 创建 TCP Socket。
-    *   使用 `socket.bind((ip, port))` 绑定地址。
-    *   使用 `socket.listen(1)` 开始监听（只接受一个客户端连接）。
-    *   使用 `conn, addr = socket.accept()` 接受连接。
-    *   启动一个线程（例如，`ClientHandlerThread`）来处理 `conn` 连接。
-    *   在 `ClientHandlerThread` 中实现接收循环：使用 `conn.recv()` 接收数据，进行分帧和反序列化，将收到的 `CommandMsg` 传递给 Jetson 主程序（例如，通过队列或回调函数）。
-    *   在 `ClientHandlerThread` 中实现发送方法 `send_message(message)`：接收消息对象，进行序列化和分帧，使用 `conn.sendall()` 发送。
-    *   Jetson 主程序通过调用 `server_instance.send_coordinates(target_coord_msg)` 来发送坐标。这个调用会在 `ClientHandlerThread` 的上下文或通过线程间通信（如队列）转发到发送方法。
-    *   处理 `socket.error` 等异常，确保连接中断时能有适当的响应或日志记录。
+* **职责:**
+  * 创建并绑定 Socket，监听指定 IP 和端口。
+  * 接受 Windows 客户端的连接。
+  * 在一个独立的线程或异步任务中处理客户端连接，负责消息的接收和发送。
+  * 提供公共接口供 Jetson 主程序调用，以发送目标坐标消息。
+  * 处理连接管理（断开、重连）。
+* **实现要点:**
+  * 使用 `socket.socket(socket.AF_INET, socket.SOCK_STREAM)` 创建 TCP Socket。
+  * 使用 `socket.bind((ip, port))` 绑定地址。
+  * 使用 `socket.listen(1)` 开始监听（只接受一个客户端连接）。
+  * 使用 `conn, addr = socket.accept()` 接受连接。
+  * 启动一个线程（例如，`ClientHandlerThread`）来处理 `conn` 连接。
+  * 在 `ClientHandlerThread` 中实现接收循环：使用 `conn.recv()` 接收数据，进行分帧和反序列化，将收到的 `CommandMsg` 传递给 Jetson 主程序（例如，通过队列或回调函数）。
+  * 在 `ClientHandlerThread` 中实现发送方法 `send_message(message)`：接收消息对象，进行序列化和分帧，使用 `conn.sendall()` 发送。
+  * Jetson 主程序通过调用 `server_instance.send_coordinates(target_coord_msg)` 来发送坐标。这个调用会在 `ClientHandlerThread` 的上下文或通过线程间通信（如队列）转发到发送方法。
+  * 处理 `socket.error` 等异常，确保连接中断时能有适当的响应或日志记录。
 
 ### Jetson TCP 服务器流程图 (Mermaid)
 
@@ -167,18 +167,18 @@ graph TD
 
 ## 5. Windows TCP 客户端 (`windows/communication/tcp/client.py`)
 
-*   **职责:**
-    *   创建 Socket，连接到 Jetson 服务器。
-    *   在一个独立的线程或异步任务中处理接收循环，负责消息的接收和反序列化。
-    *   提供公共接口以发送控制命令。
-    *   处理连接管理（断开、自动重连）。
-*   **实现要点:**
-    *   使用 `socket.socket(socket.AF_INET, socket.SOCK_STREAM)` 创建 TCP Socket。
-    *   使用 `socket.connect((jetson_ip, jetson_port))` 连接服务器。通常在一个循环中尝试连接直到成功，实现自动重连。
-    *   启动一个线程（例如，`ServerListenerThread`）来处理接收逻辑。
-    *   在 `ServerListenerThread` 中实现接收循环：使用 `socket.recv()` 接收数据，进行分帧和反序列化，将收到的 `TargetCoordinateMsg` 传递给 Windows 主程序（例如，通过队列或回调函数）。
-    *   提供公共方法 `send_command(command_msg)`：接收 `CommandMsg` 对象，进行序列化和分帧，使用 `socket.sendall()` 发送给服务器。
-    *   处理 `socket.error` 等异常，实现断线后的重连逻辑。
+* **职责:**
+  * 创建 Socket，连接到 Jetson 服务器。
+  * 在一个独立的线程或异步任务中处理接收循环，负责消息的接收和反序列化。
+  * 提供公共接口以发送控制命令。
+  * 处理连接管理（断开、自动重连）。
+* **实现要点:**
+  * 使用 `socket.socket(socket.AF_INET, socket.SOCK_STREAM)` 创建 TCP Socket。
+  * 使用 `socket.connect((jetson_ip, jetson_port))` 连接服务器。通常在一个循环中尝试连接直到成功，实现自动重连。
+  * 启动一个线程（例如，`ServerListenerThread`）来处理接收逻辑。
+  * 在 `ServerListenerThread` 中实现接收循环：使用 `socket.recv()` 接收数据，进行分帧和反序列化，将收到的 `TargetCoordinateMsg` 传递给 Windows 主程序（例如，通过队列或回调函数）。
+  * 提供公共方法 `send_command(command_msg)`：接收 `CommandMsg` 对象，进行序列化和分帧，使用 `socket.sendall()` 发送给服务器。
+  * 处理 `socket.error` 等异常，实现断线后的重连逻辑。
 
 ### Windows TCP 客户端流程图 (Mermaid)
 
@@ -209,29 +209,29 @@ graph TD
 
 ## 6. 集成到主程序
 
-*   **Jetson (`jetson/main.py`):**
-    *   创建 `NYXCamera`, `ImageStabilizer`, `CoordinateTransformer` 实例。
-    *   创建 `TcpServer` 实例，并启动其处理连接的线程。
-    *   主循环中获取相机帧 -> 稳像 -> 检测 -> 坐标转换。
-    *   计算出坐标后，调用 `TcpServer` 实例的发送方法发送消息。
-    *   处理 `TcpServer` 接收线程传过来的命令消息。
-*   **Windows (`windows/main.py`):**
-    *   创建 `TcpClient`, `SafetyChecker`, `LaserController` 实例。
-    *   创建 `TcpClient` 实例，并启动其处理接收和重连的线程。
-    *   `TcpClient` 接收线程收到坐标消息后，通过回调或其他机制通知 Windows 主程序。
-    *   Windows 主程序接收到坐标后，调用 `SafetyChecker`，然后调用 `LaserController`。
-    *   通过 UI 或其他方式调用 `TcpClient` 实例的发送方法发送命令给 Jetson。
+* **Jetson (`jetson/main.py`):**
+  * 创建 `NYXCamera`, `ImageStabilizer`, `CoordinateTransformer` 实例。
+  * 创建 `TcpServer` 实例，并启动其处理连接的线程。
+  * 主循环中获取相机帧 -> 稳像 -> 检测 -> 坐标转换。
+  * 计算出坐标后，调用 `TcpServer` 实例的发送方法发送消息。
+  * 处理 `TcpServer` 接收线程传过来的命令消息。
+* **Windows (`windows/main.py`):**
+  * 创建 `TcpClient`, `SafetyChecker`, `LaserController` 实例。
+  * 创建 `TcpClient` 实例，并启动其处理接收和重连的线程。
+  * `TcpClient` 接收线程收到坐标消息后，通过回调或其他机制通知 Windows 主程序。
+  * Windows 主程序接收到坐标后，调用 `SafetyChecker`，然后调用 `LaserController`。
+  * 通过 UI 或其他方式调用 `TcpClient` 实例的发送方法发送命令给 Jetson。
 
 ## 7. 关键实现库
 
-*   `socket`: Python 内置库，用于创建和管理 TCP Socket。
-*   `struct`: Python 内置库，用于在 Python 对象和 C 结构体之间进行转换，实现长度前缀打包和解包。
-*   `json`: Python 内置库，用于 JSON 序列化和反序列化。
-*   `threading` 或 `asyncio`: 用于在主程序不被通信阻塞的情况下进行并发处理。
+* `socket`: Python 内置库，用于创建和管理 TCP Socket。
+* `struct`: Python 内置库，用于在 Python 对象和 C 结构体之间进行转换，实现长度前缀打包和解包。
+* `json`: Python 内置库，用于 JSON 序列化和反序列化。
+* `threading` 或 `asyncio`: 用于在主程序不被通信阻塞的情况下进行并发处理。
 
 ## 8. 开发建议
 
-*   **逐步实现:** 先实现最简单的连接和收发固定字符串，再加入消息格式和分帧。
-*   **错误处理:** 在每一步都要考虑可能的网络错误、连接断开、数据格式错误，并实现健壮的错误处理和日志记录。
-*   **单元测试:** 对消息序列化/反序列化、分帧逻辑进行单元测试。
-*   **独立测试:** 先独立运行 Jetson Server 和 Windows Client，使用测试消息进行充分测试，确保通信层稳定可靠，再集成到各自的主程序中。
+* **逐步实现:** 先实现最简单的连接和收发固定字符串，再加入消息格式和分帧。
+* **错误处理:** 在每一步都要考虑可能的网络错误、连接断开、数据格式错误，并实现健壮的错误处理和日志记录。
+* **单元测试:** 对消息序列化/反序列化、分帧逻辑进行单元测试。
+* **独立测试:** 先独立运行 Jetson Server 和 Windows Client，使用测试消息进行充分测试，确保通信层稳定可靠，再集成到各自的主程序中。

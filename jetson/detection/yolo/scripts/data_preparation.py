@@ -1,101 +1,96 @@
-import os
-import yaml
-import shutil
-import tqdm
-from sklearn.model_selection import train_test_split
+import random
+from pathlib import Path
+
+# === 配置 ===
+DATASET_DIR = Path(
+    "/home/remote1/zhanghaonan/yolo-datasets/weed-dataset/datasets/all_fields_lincolnbeet/single_class")
+OUTPUT_DIR = Path(
+    "/home/remote1/zhanghaonan/yolo-datasets/weed-dataset/datasets/all_fields_lincolnbeet/config")
+TRAIN_RATIO = 0.8
+VAL_RATIO = 0.1
+TEST_RATIO = 0.1
+
+# yaml 配置
+YAML_FILENAME = OUTPUT_DIR / "configuration.yaml"
+TRAIN_TXT = OUTPUT_DIR / "train.txt"
+VAL_TXT = OUTPUT_DIR / "val.txt"
+TEST_TXT = OUTPUT_DIR / "test.txt"
+
+# 检查路径
+assert DATASET_DIR.exists(), f"{DATASET_DIR} not found!"
+
+# === 1. 遍历 PNG 文件 ===
+image_files = list(DATASET_DIR.glob("*.png"))
+print(f"Found {len(image_files)} images.")
+
+valid_image_files = []
+
+# === 2. 处理每个标签文件 ===
+for img_path in image_files:
+    label_path = img_path.with_suffix('.txt')
+    if label_path.exists():
+        new_lines = []
+        with open(label_path, 'r') as f:
+            for line in f:
+                line = line.strip()
+                if not line:
+                    continue
+                parts = line.split()
+                if len(parts) >= 5:
+                    # 把 class_index 改为 0
+                    parts[0] = '0'
+                    new_line = ' '.join(parts)
+                    new_lines.append(new_line)
+        # 覆盖写回去
+        with open(label_path, 'w') as f:
+            for line in new_lines:
+                f.write(line + '\n')
+        valid_image_files.append(img_path)
+    else:
+        print(f"Label file {label_path} not found. Deleting image {img_path}.")
+        img_path.unlink()  # 删除图片文件
+
+# === 3. 打乱 & 划分数据集 ===
+random.shuffle(valid_image_files)
+total = len(valid_image_files)
+train_end = int(total * TRAIN_RATIO)
+val_end = train_end + int(total * VAL_RATIO)
+
+train_files = valid_image_files[:train_end]
+val_files = valid_image_files[train_end:val_end]
+test_files = valid_image_files[val_end:]
+
+print(
+    f"Train: {len(train_files)}, Val: {len(val_files)}, Test: {len(test_files)}")
 
 
-SOURCE_DATA = "/home/hdd3/zhanghaonan/s2r2025/S2R2025-Datasets/YOLO/yolo_dataset_0324_1139"
-TRAIN_DATA = "/home/hdd3/zhanghaonan/s2r2025/S2R2025-Datasets/YOLO/yolo_dataset_0324_1139_train"
-CLASSES_FILE = os.path.join(SOURCE_DATA, "classes.txt")
+# === 4. 写入 txt 文件 ===
+def write_txt(filelist, out_path):
+    with open(out_path, 'w') as f:
+        for img in filelist:
+            f.write(str(img.resolve()) + '\n')
 
 
-def prepare_yolo_dataset():
-    """创建YOLO标准数据集结构"""
-    splits = ['train', 'val']
+write_txt(train_files, TRAIN_TXT)
+write_txt(val_files, VAL_TXT)
+write_txt(test_files, TEST_TXT)
 
-    # 创建目录结构
-    for split in splits:
-        os.makedirs(os.path.join(TRAIN_DATA, 'images', split), exist_ok=True)
-        os.makedirs(os.path.join(TRAIN_DATA, 'labels', split), exist_ok=True)
-        print(f"Create {split} directory done.")
+print(f"Written {TRAIN_TXT}, {VAL_TXT}, {TEST_TXT}")
 
-    # 获取所有图片文件
-    all_images = [f for f in os.listdir(os.path.join(SOURCE_DATA, "images"))
-                  if f.lower().endswith(('.png', '.jpg', '.jpeg'))]
+# === 5. 写 yaml 文件 ===
+yaml_content = f"""# YOLO Dataset Configuration
+train: {TRAIN_TXT}
+val: {VAL_TXT}
+test: {TEST_TXT}
 
-    # 划分训练集和验证集，test_size规定划分比例
-    train_files, val_files = train_test_split(
-        all_images, test_size=0.2, random_state=42)
+# number of classes
+nc: 1
 
-    # 文件复制函数
-    def copy_files(files, split: str):
-        for f in tqdm.tqdm(files):
-            base_name = os.path.splitext(f)[0]
+# class names
+names: ["grass"]
+"""
 
-            # 复制图片
-            src_img = os.path.join(SOURCE_DATA, "images", f)
-            dst_img = os.path.join(TRAIN_DATA, "images", split, f)
-            shutil.copy(src_img, dst_img)
+with open(YAML_FILENAME, 'w') as f:
+    f.write(yaml_content)
 
-            # 复制标签
-            src_label = os.path.join(SOURCE_DATA, "labels", f"{base_name}.txt")
-            dst_label = os.path.join(
-                TRAIN_DATA, "labels", split, f"{base_name}.txt")
-            if os.path.exists(src_label):
-                shutil.copy(src_label, dst_label)
-
-        print(f"Copy {split} files done.")
-
-    copy_files(train_files, 'train')
-    copy_files(val_files, 'val')
-
-    return TRAIN_DATA
-
-
-def generate_yolo_yaml(yolo_dir: str):
-    """生成YOLO数据配置文件"""
-    with open(CLASSES_FILE, 'r') as f:
-        classes = [line.strip() for line in f if line.strip()]
-
-    config = {
-        'path': yolo_dir,
-        'train': 'images/train',
-        'val': 'images/val',
-        'names': {i: name for i, name in enumerate(classes)},
-        'nc': len(classes)
-    }
-
-    yaml_path = os.path.join(yolo_dir, "data.yaml")
-    with open(yaml_path, 'w') as f:
-        yaml.dump(config, f, sort_keys=False)
-
-    print("Generate yaml file done.")
-
-
-def validate_dataset():
-    """验证数据集基本结构"""
-    if not os.path.exists(SOURCE_DATA):
-        raise ValueError(f"Dataset root path does not exist: {SOURCE_DATA}")
-
-    if not os.path.exists(os.path.join(SOURCE_DATA, "images")):
-        raise ValueError(f"Images directory not found in {SOURCE_DATA}")
-
-    if not os.path.exists(os.path.join(SOURCE_DATA, "labels")):
-        raise ValueError(f"Labels directory not found in {SOURCE_DATA}")
-
-    if not os.path.exists(CLASSES_FILE):
-        raise ValueError(f"Classes file not found: {CLASSES_FILE}")
-
-
-def main():
-    try:
-        validate_dataset()
-        yolo_dir = prepare_yolo_dataset()
-        generate_yolo_yaml(yolo_dir)
-    except Exception as e:
-        print(f"Error occurred: {e}")
-
-
-if __name__ == "__main__":
-    main()
+print(f"YAML file written to {YAML_FILENAME}")
