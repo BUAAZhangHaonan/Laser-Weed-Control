@@ -1,5 +1,7 @@
 .vscode
 /checkpoint
+/runs
+/results
 *.mp4
 *.jpg
 *.png
@@ -7,3 +9,5 @@
 *.pth
 *.__pycache__
 *.pyc
+*.egg-info
+*.egg
