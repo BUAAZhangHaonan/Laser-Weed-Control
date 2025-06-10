@@ -13,7 +13,6 @@ REFERENCE_PIXEL_POINTS_DEFAULT = [  # 预定义的4个参考像素点 (u,v)
     (100, 380),  # 左下 (假设图像高度约480)
     (540, 380)  # 右下
 ]
-# 可以根据你的相机分辨率调整这些默认点
 
 pixel_points_calib = []      # 存储标定过程中选择/确认的像素点
 laser_points_calib = []      # 存储对应的激光器坐标
@@ -48,7 +47,7 @@ def get_laser_coordinates_from_user_for_point(pixel_idx, pixel_coord):
 
 
 # --- 标定模式 ---
-def run_calibration_mode(cam, reference_points):
+def run_calibration_mode(cam: NYXCamera, reference_points):
     global pixel_points_calib, laser_points_calib, homography_matrix_2d
     print("\n--- 进入标定模式 ---")
     print(f"将在图像上显示 {len(reference_points)} 个参考点。")
@@ -63,7 +62,7 @@ def run_calibration_mode(cam, reference_points):
     current_point_idx = 0
 
     while current_point_idx < len(pixel_points_calib):
-        rgb_frame, _ = cam.get_frames()
+        rgb_frame, _ = cam.get_frame()
         if rgb_frame is None:
             print("标定模式：无法获取相机帧。")
             if cv2.waitKey(100) & 0xFF == ord('q'):
@@ -147,7 +146,7 @@ def test_mode_mouse_callback(event, x, y, flags, param):
         print(f"测试模式：选中像素点 ({x},{y})")
 
 
-def run_test_mode(cam, matrix_h):
+def run_test_mode(cam: NYXCamera, matrix_h):
     global test_mode_current_pixel
     if matrix_h is None:
         print("测试模式错误：单应性变换矩阵 (Homography) 未计算或无效。请先完成标定。")
@@ -162,7 +161,7 @@ def run_test_mode(cam, matrix_h):
     test_mode_current_pixel = None  # 重置
 
     while True:
-        rgb_frame, _ = cam.get_frames()
+        rgb_frame, _ = cam.get_frame()
         if rgb_frame is None:
             print("测试模式：无法获取相机帧。")
             if cv2.waitKey(100) & 0xFF == ord('q'):
@@ -171,30 +170,38 @@ def run_test_mode(cam, matrix_h):
 
         display_img = rgb_frame.copy()
 
-        if test_mode_current_pixel is not None:
-            u, v = test_mode_current_pixel
+        current_pixel = test_mode_current_pixel
+        if current_pixel is not None:
+            # 验证数据类型和结构
+            if isinstance(current_pixel, tuple) and len(current_pixel) == 2:
+                u, v = current_pixel
 
-            # 应用单应性变换
-            pixel_h_coords = np.array(
-                [u, v, 1.0], dtype=np.float64).reshape(3, 1)
-            laser_h_coords = matrix_h @ pixel_h_coords
+                # 应用单应性变换
+                pixel_h_coords = np.array(
+                    [u, v, 1.0], dtype=np.float64).reshape(3, 1)
+                laser_h_coords = matrix_h @ pixel_h_coords
 
-            pred_xl_str, pred_yl_str = "N/A", "N/A"
-            if abs(laser_h_coords[2, 0]) > 1e-7:  # 避免除以太小的值
-                pred_xl = laser_h_coords[0, 0] / laser_h_coords[2, 0]
-                pred_yl = laser_h_coords[1, 0] / laser_h_coords[2, 0]
-                pred_xl_str = f"{pred_xl:.2f}"
-                pred_yl_str = f"{pred_yl:.2f}"
-                print(
-                    f"  像素 ({u},{v}) -> 预测激光器坐标 (Xl, Yl): ({pred_xl_str}, {pred_yl_str})")
+                pred_xl_str, pred_yl_str = "N/A", "N/A"
+                if abs(laser_h_coords[2, 0]) > 1e-7:  # 避免除以太小的值
+                    pred_xl = laser_h_coords[0, 0] / laser_h_coords[2, 0]
+                    pred_yl = laser_h_coords[1, 0] / laser_h_coords[2, 0]
+                    pred_xl_str = f"{pred_xl:.2f}"
+                    pred_yl_str = f"{pred_yl:.2f}"
+                    print(
+                        f"  像素 ({u},{v}) -> 预测激光器坐标 (Xl, Yl): ({pred_xl_str}, {pred_yl_str})")
+                else:
+                    print(f"  像素 ({u},{v}) -> 预测激光器坐标: 变换导致尺度因子过小或为零。")
+
+                # 在图像上绘制标记和预测结果
+                cv2.circle(display_img, (u, v), 7, (255, 0, 255), 2)  # 点击点标记
+                text_to_show = f"P:({u},{v}) -> L:({pred_xl_str},{pred_yl_str})"
+                cv2.putText(display_img, text_to_show, (10, display_img.shape[0] - 20),
+                            cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 255), 1, cv2.LINE_AA)
             else:
-                print(f"  像素 ({u},{v}) -> 预测激光器坐标: 变换导致尺度因子过小或为零。")
+                print(f"警告：无效的像素点数据格式: {current_pixel}")
 
-            # 在图像上绘制标记和预测结果
-            cv2.circle(display_img, (u, v), 7, (255, 0, 255), 2)  # 点击点标记
-            text_to_show = f"P:({u},{v}) -> L:({pred_xl_str},{pred_yl_str})"
-            cv2.putText(display_img, text_to_show, (10, display_img.shape[0] - 20),
-                        cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 255), 1, cv2.LINE_AA)
+        elif current_pixel is not None:
+            print(f"警告：无效的像素点数据格式: {current_pixel}")
 
         cv2.imshow(WINDOW_NAME_TEST, display_img)
         key = cv2.waitKey(30) & 0xFF
