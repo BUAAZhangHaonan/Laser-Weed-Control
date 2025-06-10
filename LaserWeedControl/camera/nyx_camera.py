@@ -1,11 +1,14 @@
 import sys
 import time
 import numpy
+from ctypes import c_uint16, c_uint32, c_bool
 
 try:
-    from LaserWeedControl.camera.API.ScepterDS_api import *
+    from LaserWeedControl.camera.API.ScepterDS_api import ScepterTofCam
+    from LaserWeedControl.camera.API.ScepterDS_define import *
+    from LaserWeedControl.camera.API.ScepterDS_enums import ScFrameType, ScSensorType
 except ImportError:
-    print("Failed to import ScepterDS_api. Ensure the SDK's Python directory is in sys.path or PYTHONPATH.")
+    print("Failed to import ScepterDS. Ensure the SDK's Python directory is in sys.path or PYTHONPATH.")
     sys.exit(1)
 
 
@@ -26,8 +29,9 @@ class NYXCamera:
             return True
 
         print("Scanning for devices...")
-        ret, camera_count = self.camera.scGetDeviceCount(3000)
-        if ret != 0 or camera_count == 0:
+        ret = self.camera.scGetDeviceCount(c_uint32(3000))
+        camera_count = ret[1] if isinstance(ret, tuple) else 0
+        if (ret[0] if isinstance(ret, tuple) else ret) != 0 or camera_count == 0:
             print(
                 f"Failed to get device count or no devices found. Ret: {ret}, Count: {camera_count}")
             return False
@@ -77,8 +81,7 @@ class NYXCamera:
             print("Stream already started.")
             return True
 
-        ret = self.camera.scSetTransformDepthImgToColorSensorEnabled(
-            c_bool(True))
+        ret = self.camera.scSetTransformDepthImgToColorSensorEnabled(c_bool(True))
         if ret != 0:
             print(f"Failed to enable depth to color transform. Ret: {ret}")
         else:
@@ -122,8 +125,7 @@ class NYXCamera:
 
         # Get Color Frame
         if frameready.color:
-            ret, color_frame = self.camera.scGetFrame(
-                ScFrameType.SC_COLOR_FRAME)
+            ret, color_frame = self.camera.scGetFrame(ScFrameType.SC_COLOR_FRAME)
             if ret == 0:
                 if color_frame.pFrameData:
                     rgb_image = numpy.ctypeslib.as_array(
@@ -135,8 +137,7 @@ class NYXCamera:
 
         # Get Transformed Depth Frame (Aligned to Color Sensor)
         if frameready.transformedDepth:
-            ret, depth_frame = self.camera.scGetFrame(
-                ScFrameType.SC_TRANSFORM_DEPTH_IMG_TO_COLOR_SENSOR_FRAME)
+            ret, depth_frame = self.camera.scGetFrame(ScFrameType.SC_TRANSFORM_DEPTH_IMG_TO_COLOR_SENSOR_FRAME)
             if ret == 0:
                 if depth_frame.pFrameData:
                     aligned_depth_image = numpy.ctypeslib.as_array(
@@ -147,8 +148,7 @@ class NYXCamera:
                 print(f"Failed to get transformed depth frame. Ret: {ret}")
         elif frameready.depth:
             print("Transformed depth not ready, attempting to get raw depth.")
-            ret, depth_frame = self.camera.scGetFrame(
-                ScFrameType.SC_DEPTH_FRAME)
+            ret, depth_frame = self.camera.scGetFrame(ScFrameType.SC_DEPTH_FRAME)
             if ret == 0:
                 if depth_frame.pFrameData:
                     print("Warning: Got raw depth, not aligned depth.")
@@ -163,8 +163,7 @@ class NYXCamera:
             return None
 
         # Get RGB Sensor Intrinsic Parameters
-        ret_rgb_intr, self.rgb_intrinsic_params = self.camera.scGetSensorIntrinsicParameters(
-            ScSensorType.SC_COLOR_SENSOR)
+        ret_rgb_intr, self.rgb_intrinsic_params = self.camera.scGetSensorIntrinsicParameters(ScSensorType.SC_COLOR_SENSOR)
         if ret_rgb_intr != 0:
             print(
                 f"Failed to get RGB sensor intrinsic parameters. Ret: {ret_rgb_intr}")
@@ -203,7 +202,7 @@ class NYXCamera:
         self.connect()
         return self
 
-    def __exit__(self, exc_type, exc_val, exc_tb):
+    def __exit__(self, exc_type, exc_value, traceback):
         self.disconnect()
 
 

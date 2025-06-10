@@ -3,7 +3,7 @@ import platform
 import os
 import ctypes
 import sys
-from ctypes import *
+
 gCallbackFuncList=[]
 
 class ScepterTofCam():
@@ -363,7 +363,7 @@ class ScepterTofCam():
         return self.sc_cam_lib.scTransformDepthPointToColorPoint(self.device_handle, depthPoint, colorSize, byref(pPointInColor)), pPointInColor
 
     def scConvertDepthToPointCloud(self, pDepthVector = ScDepthVector3(), pointCount = c_int32(0), pSensorParam = ScSensorIntrinsicParameters()):
-        tmp = ScVector3f * pointCount
+        tmp = ScVector3f * pointCount.value
         pWorldVector = tmp()
         return self.sc_cam_lib.scConvertDepthToPointCloud(self.device_handle, byref(pDepthVector), byref(pWorldVector), pointCount, byref(pSensorParam)), pWorldVector
 

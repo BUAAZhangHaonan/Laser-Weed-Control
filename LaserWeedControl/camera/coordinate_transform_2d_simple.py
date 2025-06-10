@@ -171,7 +171,7 @@ def run_test_mode(cam, matrix_h):
 
         display_img = rgb_frame.copy()
 
-        if test_mode_current_pixel:
+        if test_mode_current_pixel is not None:
             u, v = test_mode_current_pixel
 
             # 应用单应性变换
