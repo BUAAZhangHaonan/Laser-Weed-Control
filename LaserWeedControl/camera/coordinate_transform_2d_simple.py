@@ -248,11 +248,10 @@ def main() -> None:
     global homography_matrix_2d
     print("--- 简易2D坐标变换与标定脚本 ---")
 
-    WINDOW_WIDTH, WINDOW_HEIGHT = 1600, 1200
+    WINDOW_WIDTH, WINDOW_HEIGHT = 640, 480
     MARGIN_RATE = 0.1
     MARGIN = max(int(MARGIN_RATE * WINDOW_WIDTH), int(MARGIN_RATE * WINDOW_HEIGHT))
 
-    # 使用 with 语句确保相机资源被正确释放
     try:
         with NYXCamera() as camera:
             if not camera.is_connected:
@@ -317,7 +316,7 @@ def main() -> None:
         import traceback
         traceback.print_exc()
     finally:
-        cv2.destroyAllWindows()  # 确保所有OpenCV窗口都关闭
+        cv2.destroyAllWindows()
         print("\n--- 脚本执行完毕 ---")
 
 
