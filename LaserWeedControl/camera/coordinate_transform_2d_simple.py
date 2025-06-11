@@ -1,6 +1,8 @@
 # camera/coordinate_transform_2d_simple.py
 import cv2
 import numpy as np
+import time
+from ctypes import c_int32
 
 from LaserWeedControl.camera.nyx_camera import NYXCamera
 
@@ -20,7 +22,15 @@ homography_matrix_2d = None  # 计算得到的单应性变换矩阵
 
 
 # --- 辅助函数 ---
-def draw_points(image, points, current_highlight_idx=None, color=(0, 255, 0), highlight_color=(0, 0, 255), radius=7, thickness=-1):
+def draw_points(
+    image: np.ndarray,
+    points: list[tuple[int, int]],
+    current_highlight_idx: int = 0,
+    color: tuple = (0, 255, 0),
+    highlight_color: tuple = (0, 0, 255),
+    radius: int = 7,
+    thickness: int = -1
+) -> np.ndarray:
     """在图像上绘制点，并高亮显示当前点"""
     for i, (x, y) in enumerate(points):
         pt_color = highlight_color if i == current_highlight_idx else color
@@ -30,7 +40,10 @@ def draw_points(image, points, current_highlight_idx=None, color=(0, 255, 0), hi
     return image
 
 
-def get_laser_coordinates_from_user_for_point(pixel_idx, pixel_coord):
+def get_laser_coordinates_from_user_for_point(
+    pixel_idx: int,
+    pixel_coord: tuple[int, int]
+) -> tuple[float, float]:
     """提示用户为特定像素点输入激光器坐标"""
     while True:
         try:
@@ -47,7 +60,10 @@ def get_laser_coordinates_from_user_for_point(pixel_idx, pixel_coord):
 
 
 # --- 标定模式 ---
-def run_calibration_mode(cam: NYXCamera, reference_points):
+def run_calibration_mode(
+    camera: NYXCamera,
+    reference_points: list[tuple[int, int]]
+) -> bool:
     global pixel_points_calib, laser_points_calib, homography_matrix_2d
     print("\n--- 进入标定模式 ---")
     print(f"将在图像上显示 {len(reference_points)} 个参考点。")
@@ -62,7 +78,7 @@ def run_calibration_mode(cam: NYXCamera, reference_points):
     current_point_idx = 0
 
     while current_point_idx < len(pixel_points_calib):
-        rgb_frame, _ = cam.get_frame()
+        rgb_frame, _ = camera.get_frame()
         if rgb_frame is None:
             print("标定模式：无法获取相机帧。")
             if cv2.waitKey(100) & 0xFF == ord('q'):
@@ -75,12 +91,12 @@ def run_calibration_mode(cam: NYXCamera, reference_points):
 
         # 显示提示信息
         text_y_offset = 30
-        cv2.putText(display_img, f"标定点 {current_point_idx + 1}/{len(pixel_points_calib)}: ({pixel_points_calib[current_point_idx][0]},{pixel_points_calib[current_point_idx][1]})",
-                    (10, text_y_offset), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 0), 1, cv2.LINE_AA)
-        cv2.putText(display_img, "将激光打到此点, 然后在控制台输入激光器 (X,Y) 坐标。",
-                    (10, text_y_offset + 25), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 0), 1, cv2.LINE_AA)
-        cv2.putText(display_img, "按 'n' 确认当前点并到下一个, 'q' 退出。",
-                    (10, text_y_offset + 50), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 0), 1, cv2.LINE_AA)
+        cv2.putText(display_img, f"Calibration Point {current_point_idx + 1}/{len(pixel_points_calib)}: ({pixel_points_calib[current_point_idx][0]},{pixel_points_calib[current_point_idx][1]})",
+                (10, text_y_offset), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 0), 1, cv2.LINE_AA)
+        cv2.putText(display_img, "Aim laser at this point, then input laser (X,Y) coordinates in console.",
+                (10, text_y_offset + 25), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 0), 1, cv2.LINE_AA)
+        cv2.putText(display_img, "Press 'n' to confirm current point and go to next, 'q' to quit.",
+                (10, text_y_offset + 50), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 0), 1, cv2.LINE_AA)
 
         cv2.imshow(WINDOW_NAME_CALIB, display_img)
         key = cv2.waitKey(1) & 0xFF  # 非阻塞等待
@@ -104,6 +120,8 @@ def run_calibration_mode(cam: NYXCamera, reference_points):
                 continue
 
             print(f"\n--- 正在标定点 {current_point_idx + 1} ---")
+            # 关闭窗口，释放输入焦点
+            cv2.destroyWindow(WINDOW_NAME_CALIB)
             xl, yl = get_laser_coordinates_from_user_for_point(
                 current_point_idx, pixel_points_calib[current_point_idx])
             laser_points_calib.append((xl, yl))
@@ -112,6 +130,9 @@ def run_calibration_mode(cam: NYXCamera, reference_points):
             current_point_idx += 1
             if current_point_idx == len(pixel_points_calib):
                 print("\n所有参考点的激光器坐标已输入完毕。")
+            # 输入完后重新打开窗口，自动高亮下一个点
+            if current_point_idx < len(pixel_points_calib):
+                cv2.namedWindow(WINDOW_NAME_CALIB)
 
     cv2.destroyWindow(WINDOW_NAME_CALIB)
 
@@ -139,14 +160,23 @@ def run_calibration_mode(cam: NYXCamera, reference_points):
 test_mode_current_pixel = None  # 用于存储鼠标点击的像素点
 
 
-def test_mode_mouse_callback(event, x, y, flags, param):
+def test_mode_mouse_callback(
+    event: int,
+    x: int,
+    y: int,
+    flags: int,
+    param
+) -> None:
     global test_mode_current_pixel
     if event == cv2.EVENT_LBUTTONDOWN:
         test_mode_current_pixel = (x, y)
         print(f"测试模式：选中像素点 ({x},{y})")
 
 
-def run_test_mode(cam: NYXCamera, matrix_h):
+def run_test_mode(
+    camera: NYXCamera,
+    matrix_h: np.ndarray
+) -> None:
     global test_mode_current_pixel
     if matrix_h is None:
         print("测试模式错误：单应性变换矩阵 (Homography) 未计算或无效。请先完成标定。")
@@ -161,7 +191,7 @@ def run_test_mode(cam: NYXCamera, matrix_h):
     test_mode_current_pixel = None  # 重置
 
     while True:
-        rgb_frame, _ = cam.get_frame()
+        rgb_frame, _ = camera.get_frame()
         if rgb_frame is None:
             print("测试模式：无法获取相机帧。")
             if cv2.waitKey(100) & 0xFF == ord('q'):
@@ -213,32 +243,38 @@ def run_test_mode(cam: NYXCamera, matrix_h):
 
 
 # --- 主函数 ---
-def main():
+def main() -> None:
     global homography_matrix_2d
     print("--- 简易2D坐标变换与标定脚本 ---")
 
-    # 调整参考点以适应常见的640x480图像，并向内收缩一些
-    # 你可以根据你的相机分辨率和期望的标定区域调整这些点
-    image_width, image_height = 640, 480  # 假设的相机分辨率
-    margin = 50  # 边距
-    calib_reference_points = [
-        (margin, margin),
-        (image_width - margin, margin),
-        (margin, image_height - margin),
-        (image_width - margin, image_height - margin)
-    ]
-    print(f"使用的默认参考像素点: {calib_reference_points}")
-    print("如果你的相机分辨率不同，请修改脚本中的 `image_width`, `image_height` 和 `margin`。")
+    WINDOW_WIDTH, WINDOW_HEIGHT = 1600, 1200
+    MARGIN_RATE = 0.1
+    MARGIN = max(int(MARGIN_RATE * WINDOW_WIDTH), int(MARGIN_RATE * WINDOW_HEIGHT))
 
     # 使用 with 语句确保相机资源被正确释放
     try:
-        with NYXCamera() as cam:
-            if not cam.is_connected:
+        with NYXCamera() as camera:
+            if not camera.is_connected:
                 print("错误：无法连接到相机。脚本将退出。")
                 return
-            if not cam.start_streaming():
-                print("错误：无法启动相机数据流。脚本将退出。")
-                return
+
+            # 设置分辨率
+            ret = camera.camera.scSetColorResolution(c_int32(WINDOW_WIDTH), c_int32(WINDOW_HEIGHT))
+            time.sleep(2)
+            if ret != 0:
+                print(f"scSetColorResolution failed status: {ret}")
+            else:
+                print(f"set to {WINDOW_WIDTH}_{WINDOW_HEIGHT}")
+
+            # ==== 生成标定点 ====
+            calib_reference_points = [
+                (MARGIN, MARGIN),
+                (WINDOW_WIDTH - MARGIN, MARGIN),
+                (MARGIN, WINDOW_HEIGHT - MARGIN),
+                (WINDOW_WIDTH - MARGIN, WINDOW_HEIGHT - MARGIN)
+            ]
+            print(f"使用的参考像素点: {calib_reference_points}")
+            print("如果你的相机分辨率不同，标定点会自动适配。")
 
             while True:
                 print("\n请选择操作模式:")
@@ -249,18 +285,20 @@ def main():
 
                 if choice == '1':
                     calibration_successful = run_calibration_mode(
-                        cam, calib_reference_points)
+                        camera, calib_reference_points)
                     if calibration_successful:
                         print("标定完成并成功计算了变换矩阵。")
-                        # 询问是否立即进入测试
                         test_now = input("是否立即进入测试模式? (y/n): ").lower()
                         if test_now == 'y':
-                            run_test_mode(cam, homography_matrix_2d)
+                            if homography_matrix_2d is not None:
+                                run_test_mode(camera, homography_matrix_2d)
+                            else:
+                                print("错误：变换矩阵为空，无法进入测试模式。")
                     else:
                         print("标定未完成或计算失败。")
                 elif choice == '2':
                     if homography_matrix_2d is not None:
-                        run_test_mode(cam, homography_matrix_2d)
+                        run_test_mode(camera, homography_matrix_2d)
                     else:
                         print("错误：没有可用的标定矩阵。请先运行标定模式 (选项 1)。")
                 elif choice == 'q':

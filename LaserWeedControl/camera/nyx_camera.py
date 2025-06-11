@@ -1,7 +1,13 @@
 import sys
+import os
 import time
-import numpy
+import numpy as np
 from ctypes import c_uint16, c_uint32, c_bool
+
+current_file = os.path.abspath(__file__)
+project_root = os.path.dirname(os.path.dirname(os.path.dirname(current_file)))
+if project_root not in sys.path:
+    sys.path.insert(0, project_root)
 
 try:
     from LaserWeedControl.camera.API.ScepterDS_api import ScepterTofCam
@@ -14,6 +20,7 @@ except ImportError:
 
 class NYXCamera:
     def __init__(self):
+        # 初始化NYX相机对象，设置初始状态和参数
         self.camera = ScepterTofCam()
         self.device_info = None
         self.is_connected = False
@@ -23,7 +30,13 @@ class NYXCamera:
         self.depth_intrinsic_params = None
         self.rgb_to_depth_extrinsic_params = None
 
-    def connect(self):
+    def connect(self) -> bool:
+        """
+        连接到NYX相机设备。如果已连接则直接返回。
+        扫描设备、获取设备信息并尝试连接。
+        Returns:
+            bool: 连接是否成功
+        """
         if self.is_connected:
             print("Camera already connected.")
             return True
@@ -55,7 +68,12 @@ class NYXCamera:
         print("Camera connected successfully.")
         return True
 
-    def disconnect(self):
+    def disconnect(self) -> bool:
+        """
+        断开与NYX相机的连接。如果正在流式传输，则先停止流。
+        Returns:
+            bool: 断开是否成功
+        """
         if not self.is_connected:
             print("Camera not connected.")
             return True
@@ -73,7 +91,13 @@ class NYXCamera:
         print("Camera disconnected successfully.")
         return True
 
-    def start_streaming(self):
+    def start_streaming(self) -> bool:
+        """
+        启动相机的数据流。需先连接设备。
+        启用深度到彩色对齐，并开始流式传输。
+        Returns:
+            bool: 启动流是否成功
+        """
         if not self.is_connected:
             print("Camera not connected. Cannot start streaming.")
             return False
@@ -96,7 +120,12 @@ class NYXCamera:
         print("Stream started successfully.")
         return True
 
-    def stop_streaming(self):
+    def stop_streaming(self) -> bool:
+        """
+        停止相机的数据流。
+        Returns:
+            bool: 停止流是否成功
+        """
         if not self.is_streaming:
             print("Stream not started.")
             return True
@@ -110,7 +139,14 @@ class NYXCamera:
         print("Stream stopped successfully.")
         return True
 
-    def get_frame(self, timeout_ms=1200):
+    def get_frame(self, timeout_ms: int = 1200) -> tuple:
+        """
+        获取一帧RGB图像和对齐的深度图像。
+        Args:
+            timeout_ms (int): 等待帧准备好的超时时间（毫秒）。
+        Returns:
+            tuple: (rgb_image, aligned_depth_image)
+        """
         if not self.is_streaming:
             print("Stream not started. Cannot get frame.")
             return None, None
@@ -128,7 +164,7 @@ class NYXCamera:
             ret, color_frame = self.camera.scGetFrame(ScFrameType.SC_COLOR_FRAME)
             if ret == 0:
                 if color_frame.pFrameData:
-                    rgb_image = numpy.ctypeslib.as_array(
+                    rgb_image = np.ctypeslib.as_array(
                         color_frame.pFrameData,
                         (color_frame.height, color_frame.width, 3)
                     ).copy()
@@ -140,10 +176,10 @@ class NYXCamera:
             ret, depth_frame = self.camera.scGetFrame(ScFrameType.SC_TRANSFORM_DEPTH_IMG_TO_COLOR_SENSOR_FRAME)
             if ret == 0:
                 if depth_frame.pFrameData:
-                    aligned_depth_image = numpy.ctypeslib.as_array(
+                    aligned_depth_image = np.ctypeslib.as_array(
                         depth_frame.pFrameData,
                         (depth_frame.height, depth_frame.width)
-                    ).astype(numpy.uint16).copy()
+                    ).astype(np.uint16).copy()
             else:
                 print(f"Failed to get transformed depth frame. Ret: {ret}")
         elif frameready.depth:
@@ -157,7 +193,12 @@ class NYXCamera:
 
         return rgb_image, aligned_depth_image
 
-    def get_calibration_params(self):
+    def get_calibration_params(self) -> dict | None:
+        """
+        获取相机的标定参数，包括RGB和深度相机的内参，以及深度到RGB的外参。
+        Returns:
+            dict | None: 包含内外参的字典
+        """
         if not self.is_connected:
             print("Camera not connected. Cannot get calibration parameters.")
             return None
@@ -198,11 +239,19 @@ class NYXCamera:
             "extrinsics_depth_to_color": self.rgb_to_depth_extrinsic_params
         }
 
-    def __enter__(self):
+    def __enter__(self) -> "NYXCamera":
+        """
+        支持with语句自动连接相机。
+        Returns:
+            NYXCamera: 当前对象
+        """
         self.connect()
         return self
 
-    def __exit__(self, exc_type, exc_value, traceback):
+    def __exit__(self, exc_type, exc_value, traceback) -> None:
+        """
+        支持with语句自动断开相机连接。
+        """
         self.disconnect()
 
 
