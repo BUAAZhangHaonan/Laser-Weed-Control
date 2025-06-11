@@ -3,6 +3,13 @@ import cv2
 import numpy as np
 import time
 from ctypes import c_int32
+import os
+import sys
+
+current_file = os.path.abspath(__file__)
+project_root = os.path.dirname(os.path.dirname(os.path.dirname(current_file)))
+if project_root not in sys.path:
+    sys.path.insert(0, project_root)
 
 from LaserWeedControl.camera.nyx_camera import NYXCamera
 
