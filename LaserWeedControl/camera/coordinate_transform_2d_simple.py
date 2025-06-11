@@ -16,12 +16,6 @@ from LaserWeedControl.camera.nyx_camera import NYXCamera
 # --- 全局变量 ---
 WINDOW_NAME_CALIB = "简易2D标定 - 校准模式"
 WINDOW_NAME_TEST = "简易2D标定 - 测试模式"
-REFERENCE_PIXEL_POINTS_DEFAULT = [  # 预定义的4个参考像素点 (u,v)
-    (100, 100),  # 左上
-    (540, 100),  # 右上 (假设图像宽度约640)
-    (100, 380),  # 左下 (假设图像高度约480)
-    (540, 380)  # 右下
-]
 
 pixel_points_calib = []      # 存储标定过程中选择/确认的像素点
 laser_points_calib = []      # 存储对应的激光器坐标
@@ -92,7 +86,7 @@ def run_calibration_mode(
                 break
             continue
 
-        display_img = rgb_frame.copy()
+        display_img = np.array(rgb_frame).copy()
         display_img = draw_points(
             display_img, pixel_points_calib, current_highlight_idx=current_point_idx)
 
@@ -263,6 +257,10 @@ def main() -> None:
         with NYXCamera() as camera:
             if not camera.is_connected:
                 print("错误：无法连接到相机。脚本将退出。")
+                return
+            
+            if not camera.start_streaming():
+                print("错误：无法启动相机数据流。脚本将退出。")
                 return
 
             # 设置分辨率
