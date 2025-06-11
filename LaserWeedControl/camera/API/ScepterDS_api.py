@@ -17,8 +17,12 @@ class ScepterTofCam():
         print('system:', system_)
         print('machine_:', machine_)
         print('architecture:', architecture_)
-        currentPath = sys.path[0]
-        pos = currentPath.find('MultilanguageSDK')
+
+        script_dir = os.path.dirname(os.path.abspath(__file__))
+        # SDK base directory is expected to be ../SDK relative to this script's directory
+        # e.g., if script is in LaserWeedControl/camera/API/, SDK is in LaserWeedControl/camera/SDK/
+        sdk_base_dir = os.path.abspath(os.path.join(script_dir, '..', 'SDK'))
+
         if system_ == 'linux':
             if machine_ == 'x86_64':
                 os_info = os.uname()
@@ -26,21 +30,18 @@ class ScepterTofCam():
                 system_info = os_info.version
                 print('version:', system_info)
                 if system_info.find('16.04') != -1:
-                    libpath = os.path.abspath(
-                        currentPath[:pos] + "BaseSDK/Ubuntu16.04/Lib/libScepter_api.so")
-                    # libpath = (os.path.abspath(os.path.dirname(os.getcwd()) + os.path.sep + "../../../../BaseSDK/"))+"/Ubuntu16.04/Lib/libScepter_api.so"
+                    libpath = os.path.join(
+                        sdk_base_dir, "Ubuntu16.04", "Lib", "libScepter_api.so")
                     print(libpath)
                     self.sc_cam_lib = cdll.LoadLibrary(libpath)
                 else:
-                    libpath = os.path.abspath(
-                        currentPath[:pos] + "BaseSDK/Ubuntu/Lib/libScepter_api.so")
-                    # libpath = (os.path.abspath(os.path.dirname(os.getcwd()) + os.path.sep + "../../../../BaseSDK/"))+"/Ubuntu/Lib/libScepter_api.so"
+                    libpath = os.path.join(
+                        sdk_base_dir, "Ubuntu", "Lib", "libScepter_api.so")
                     print(libpath)
                     self.sc_cam_lib = cdll.LoadLibrary(libpath)
             elif machine_ == 'aarch64':
-                libpath = os.path.abspath(
-                    currentPath[:pos] + "BaseSDK/AArch64/Lib/libScepter_api.so")
-                # libpath = (os.path.abspath(os.path.dirname(os.getcwd()) + os.path.sep + "../../../../BaseSDK/"))+"/AArch64/Lib/libScepter_api.so"
+                libpath = os.path.join(
+                    sdk_base_dir, "AArch64", "Lib", "libScepter_api.so")
                 print(libpath)
                 self.sc_cam_lib = cdll.LoadLibrary(libpath)
             else:
@@ -49,15 +50,13 @@ class ScepterTofCam():
         elif platform.system() == 'Windows':
             if machine_ == 'amd64':
                 if architecture_ == '64bit':
-                    libpath = os.path.abspath(
-                        currentPath[:pos] + "BaseSDK/Windows/Bin/x64/Scepter_api.dll")
-                    # libpath = (os.path.abspath(os.path.dirname(os.getcwd()) + os.path.sep + "../../../../BaseSDK/"))+"/Windows/Bin/x64/Scepter_api.dll"
+                    libpath = os.path.join(
+                        sdk_base_dir, "Windows", "Bin", "x64", "Scepter_api.dll")
                     print(libpath)
                     self.sc_cam_lib = cdll.LoadLibrary(libpath)
                 else:
-                    libpath = os.path.abspath(
-                        currentPath[:pos] + "BaseSDK/Windows/Bin/x86/Scepter_api.dll")
-                    # libpath = (os.path.abspath(os.path.dirname(os.getcwd()) + os.path.sep + "../../../../BaseSDK/"))+"/Windows/Bin/x86/Scepter_api.dll"
+                    libpath = os.path.join(
+                        sdk_base_dir, "Windows", "Bin", "x86", "Scepter_api.dll")
                     print(libpath)
                     self.sc_cam_lib = cdll.LoadLibrary(libpath)
             else:
